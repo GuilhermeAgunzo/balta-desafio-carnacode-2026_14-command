@@ -1,46 +1,61 @@
-﻿namespace Command;
+﻿using Command.Commands;
 
-// Problema: Aplicação chama métodos diretamente, sem forma de desfazer
+namespace Command;
+
 public class EditorApplication
 {
-    private TextEditor _editor;
+    private readonly TextEditor _editor = new();
+    private readonly Stack<IEditorCommand> _undoStack = new();
+    private readonly Stack<IEditorCommand> _redoStack = new();
 
-    public EditorApplication()
+    public void ExecuteCommand(IEditorCommand command)
     {
-        _editor = new TextEditor();
+        command.Execute();
+        _undoStack.Push(command);
+        _redoStack.Clear();
     }
 
     public void TypeText(string text)
-    {
-        // Problema: Operação executada diretamente
-        // Como desfazer isso depois?
-        _editor.InsertText(text);
-    }
+        => ExecuteCommand(new InsertTextCommand(_editor, text));
 
     public void DeleteCharacters(int count)
-    {
-        // Problema: Não há registro do que foi deletado
-        // Como restaurar o texto deletado?
-        _editor.DeleteText(count);
-    }
+        => ExecuteCommand(new DeleteTextCommand(_editor, count));
 
     public void MakeBold(int start, int length)
-    {
-        // Problema: Como reverter esta formatação?
-        _editor.SetBold(start, length);
-    }
+        => ExecuteCommand(new BoldCommand(_editor, start, length));
 
-    // Problema: Como implementar Undo/Redo sem refatorar tudo?
     public void Undo()
     {
-        // ??? Como saber qual foi a última operação?
-        // ??? Como reverter sem conhecer os parâmetros originais?
-        Console.WriteLine("❌ Undo não implementado - não há histórico de operações!");
+        if (_undoStack.Count == 0)
+        {
+            Console.WriteLine("[Undo] Nada para desfazer.");
+            return;
+        }
+
+        var command = _undoStack.Pop();
+        command.Undo();
+        _redoStack.Push(command);
+        Console.WriteLine($"[Undo] {command.GetType().Name} desfeito.");
     }
 
     public void Redo()
     {
-        Console.WriteLine("❌ Redo não implementado!");
+        if (_redoStack.Count == 0)
+        {
+            Console.WriteLine("[Redo] Nada para refazer.");
+            return;
+        }
+
+        var command = _redoStack.Pop();
+        command.Execute();
+        _undoStack.Push(command);
+        Console.WriteLine($"[Redo] {command.GetType().Name} refeito.");
+    }
+
+    public void ExecuteMacro(params IEditorCommand[] commands)
+    {
+        var macro = new MacroCommand(commands);
+        ExecuteCommand(macro);
     }
 
     public void ShowContent()
